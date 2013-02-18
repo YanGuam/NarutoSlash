@@ -5,9 +5,10 @@ hynaruto = sgs.General(extension, "hynaruto", "wu")
 hysasuke = sgs.General(extension, "hysasuke", "wu", "3")
 hysakura = sgs.General(extension, "hysakura", "wu", "3", false)
 hykakasi = sgs.General(extension, "hykakasi", "wu", "3")
+hyrii = sgs.General(extension, "hyrii", "wu")
 
 hyfennu = sgs.CreateTriggerSkill{
-  name = "hyfennu",
+	name = "hyfennu",
 	frequency = sgs.Skill_Frequent,
 	events = {sgs.ConfirmDamage},
 	on_trigger = function(self, event, player, data)
@@ -318,8 +319,208 @@ hydianche = sgs.CreateTriggerSkill{
 			end
 		end
 		if event == sgs.Predamage then
-			
-		
+			local effect = data:toDamage()
+			if effect.nature ~= sgs.DamageStruct_Thunder then
+				effect.nature = sgs.DamageStruct_Thunder 
+				data:setValue(effect)
+			end
+			return false
+		end
+	end,
+}
+
+hyningtongCard = sgs.CreateSkillCard{
+	name = "hyningtongCard",
+	target_fixed = true,
+	will_throw = false,
+	on_effect = function(self, effect)
+	end,
+}
+
+hyningtongVS = sgs.CreateViewAsSkill{
+	name = "hyningtongVS",
+	n = 1,
+	view_filter = function(self, selected, to_select)
+		if #selected == 0 then
+			return to_select:isRed() and not to_select:isEquipped()
+		end
+		return false
+	end,
+	view_as = function(self, cards)
+		if #cards == 0 then
+			return nil
+		end
+		local card = hyningtongCard:clone()
+		card:addSubcard(cards[1])
+		card:setSkillName(self:objectName())
+		return card
+	end,
+	enabled_at_play = function(self, player)
+		return false
+	end,
+	enabled_at_response = function(self, player, pattern)
+		return pattern == "@hyningtong"
+	end
+}
+
+hyningtong = sgs.CreateTriggerSkill{
+	name = "hyningtong",
+	frequency = sgs.Skill_NotFrequent,
+	events = {sgs.AskForRetrial},
+	view_as_skill = hyningtongVS,
+	on_trigger = function(self, event, player, data)
+		if player:askForSkillInvoke(self:objectName(), data) then
+			local judge = data:toJudge()
+			local room = player:getRoom()
+			local card = room:askForCard(player, "@hyningtong", nil, data, sgs.AskForRetrial)
+			room:retrial(card, player, judge, self:objectName())
+			return false
+		end
+	end,
+	can_trigger = function(self, target)
+		if target then
+			if target:isAlive() and target:hasSkill(self:objectName()) then
+				return not target:isKongcheng()
+			end
+		end
+		return false
+	end,
+}
+
+hybadun = sgs.CreateTriggerSkill{
+	name = "hybadun",
+	frequency = sgs.Skill_Compulsory,
+	events = {sgs.TargetConfirmed,sgs.ConfirmDamage,sgs.EventPhaseStart},
+	on_trigger = function(self, event, player, data)
+		if event == sgs.TargetConfirmed then
+			local use = data:toCardUse()
+			local source = use.from
+			if source:objectName() == player:objectName() then
+				local card = use.card
+				if card:isKindOf("Slash") then
+					local phase = player:getPhase()
+					if phase == sgs.Player_Play then
+						local count = player:getMark("@men")
+						if  count < 8 then
+							player:gainMark("@men")
+						end
+					end
+				end
+			end
+		elseif event == sgs.ConfirmDamage then
+			local damage = data:toDamage()
+			local slash = damage.card
+			if slash and slash:isKindOf("Slash") then
+				if player:getPhase() == sgs.Player_Play then
+					local x = player:getMark("@men")
+					if x > 0 then
+						damage.damage = damage.damage + x
+						data:setValue(damage)
+					end
+				end
+			end
+		elseif event == sgs.EventPhaseStart then
+			if player:getPhase() == sgs.Player_Finish then
+				local x = player:getMark("@men")
+				if x > 0 then
+					local room = player:getRoom()
+					if x > 7 then
+						local damage = sgs.DamageStruct()
+						damage.from = player
+						room:killPlayer(player, damage)
+					else
+						player:loseMark("@men", x)
+					end
+				end
+			end
+		end
+		return false
+	end,
+}
+
+hyliandanCard = sgs.CreateSkillCard{
+	name = "hyliandanCard",
+	target_fixed = false,
+	will_throw = true,
+	filter = function(self, targets, to_select, player)
+		return #targets == 0 and to_select:objectName() ~= player:objectName()
+	end,
+	on_use = function(self, room, source, targets)
+	    room:broadcastSkillInvoke("hyliandan")
+		room:loseHp(source, 1)
+		if source:isAlive() then
+			room:setPlayerMark(targets[1],"liandantarget",1)
+			room:setFixedDistance(source,targets[1],1)
+		end
+	end,
+}
+
+hyliandanVS = sgs.CreateViewAsSkill{
+	name = "hyliandanVS",
+	n = 0,
+	view_filter = function(self, selected, to_select)
+		return true
+	end,
+	view_as = function(self, cards)
+		return hyliandanCard:clone()
+	end,
+	enabled_at_play = function(self, player)
+		return not player:hasUsed("#hyliandanCard")
+	end,
+}
+
+hyliandan = sgs.CreateTriggerSkill{
+	name = "hyliandan",
+	frequency = sgs.Skill_NotFrequent,
+	events = {sgs.EventPhaseStart, sgs.SlashMissed},
+	view_as_skill = hyliandanVS,
+	on_trigger = function(self, event, player, data)
+		if event == sgs.EventPhaseStart then
+			if player:getPhase() ~= sgs.Player_NotActive then return end
+			local room = player:getRoom()
+			for _,p in sgs.qlist(room:getAllPlayers()) do
+				if p:getMark("liandantarget")>0 then
+					room:setPlayerMark(p, "liandantarget", 0)
+					room:setFixedDistance(player, p, -1)
+				end
+			end
+		elseif event == sgs.SlashMissed then
+			local room = player:getRoom()
+			local effect = data:toSlashEffect()
+			local dest = effect.to
+			if dest:isAlive() then
+				if effect.from:canSlash(dest, nil, false) then
+					local prompt = "InvokeForSlash"
+					room:askForUseSlashTo(player, dest, prompt)
+				end
+			end
+		end
+        return false
+	end,
+}
+
+hyroubo = sgs.CreateFilterSkill{
+	name = "hyroubo",
+	view_filter = function(self, to_select)
+		local room = sgs.Sanguosha:currentRoom()
+		local place = room:getCardPlace(to_select:getEffectiveId())
+		if place == sgs.Player_PlaceHand then
+			return to_select:isKindOf("EquipCard")
+		end
+		return false
+	end,
+	view_as = function(self, card)
+		local suit = card:getSuit()
+		local point = card:getNumber()
+		local id = card:getId()
+		local slash = sgs.Sanguosha:cloneCard("slash", suit, point)
+		slash:setSkillName(self:objectName())
+		local vs_card = sgs.Sanguosha:getWrappedCard(id)
+		vs_card:takeOver(slash)
+		return vs_card
+	end,
+}
+
 hynaruto:addSkill(hyfennu)
 hynaruto:addSkill(hyfenshen)
 
@@ -331,6 +532,12 @@ hysakura:addSkill(hyzhangxian)
 hysakura:addSkill(hyyinghua)
 
 hykakasi:addSkill(hyfengchi)
+hykakasi:addSkill(hydianche)
+hykakasi:addSkill(hyningtong)
+
+hyrii:addSkill(hybadun)
+hyrii:addSkill(hyliandan)
+hyrii:addSkill(hyroubo)
 
 sgs.LoadTranslationTable{
 	["naruto"] = "火影",
@@ -381,4 +588,27 @@ sgs.LoadTranslationTable{
 	["illustrator:hykakasi"] = "岸本齐史",
 	["hyfengchi"] = "风驰",
 	[":hyfengchi"] = "你可以跳过你此回合的摸牌阶段。若如此做，视为对一名其他角色使用一张【杀】。",
+	["hydianche"] = "电掣",
+	[":hydianche"] = "你每受到或造成1点雷属性伤害，可摸两张牌，将其中的一张交给任意一名角色，然后将另一张交给任意一名角色。你造成的伤害均视为雷属性伤害。",	
+	["hyningtongCard"] = "凝瞳",
+	["hyningtongVS"] = "凝瞳",
+	["hyningtong"] = "凝瞳",
+	[":hyningtong"] = "在任意角色的判定牌生效前，你可以打出一张红色手牌代替之。",
+	["~hyningtong"] = "请弃置一张红色手牌更改判定结果。",
+	
+	["hyrii"] = "李",
+	["#hyrii"] = "热血少年",
+	["designer:hyrii"] = "啦啦SLG",
+	["cv:hyrii"] = "增川洋一",
+	["illustrator:hyrii"] = "岸本齐史",
+	["hybadun"] = "八遁",
+	[":hybadun"] = "<b>锁定技</b>,出牌阶段，每当你使用一张【杀】，你获得一枚【门】标记（最多8枚），你的【杀】造成的伤害始终+X（X=【门】标记的数量）。回合结束阶段开始时，若【门】标记数量为8枚，你立即死亡，若不足8枚，你弃置所有【门】标记。",
+	["@men"] = "门",
+	["hyliandanCard"] = "连弹",
+	["hyliandanVS"] = "连弹",
+	["hyliandan"] = "连弹",
+	[":hyliandan"] = "出牌阶段，你可以失去1点体力并指定一名角色，你与该角色的距离始终视为1，直到回合结束。每阶段限1次。当你使用的【杀】被【闪】抵消时，你可以对相同的目标再使用一张【杀】（无距离限制）。",
+	["InvokeForSlash"] = "你可以对目标再使用一张【杀】。",
+	["hyroubo"] = "肉搏",
+	[":hyroubo"] = "<b>锁定技</b>,你手牌中的装备牌均视为【杀】。",
 }
