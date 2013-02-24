@@ -6,7 +6,8 @@ hysasuke = sgs.General(extension, "hysasuke", "wu", "3")
 hysakura = sgs.General(extension, "hysakura", "wu", "3", false)
 hykakasi = sgs.General(extension, "hykakasi", "wu", "3")
 hyrii = sgs.General(extension, "hyrii", "wu")
-hygaara = sgs.General(extension, "hygaara", "shu", "4")
+hygaara = sgs.General(extension, "hygaara", "shu")
+hyneiji = sgs.General(extension, "hyneiji", "wu", "3")
 
 hyfennu = sgs.CreateTriggerSkill{
 	name = "hyfennu",
@@ -361,7 +362,7 @@ hyningtongVS = sgs.CreateViewAsSkill{
 	end,
 	enabled_at_response = function(self, player, pattern)
 		return pattern == "@hyningtong"
-	end
+	end,
 }
 
 hyningtong = sgs.CreateTriggerSkill{
@@ -548,6 +549,7 @@ hyjiamei = sgs.CreateTriggerSkill{
 		local room = player:getRoom()
 		player:gainMark("@waked")
 		room:loseMaxHp(player)
+		room:detachSkillFromPlayer(player, "hyshakai")
 		room:acquireSkill(player, "hyshouhe", true)
 		room:acquireSkill(player, "hyjueyu", true)
 		room:setPlayerMark(player, "jiamei", 1)
@@ -621,6 +623,41 @@ if not jueyu then
 	sgs.Sanguosha:addSkills(skillList)
 end
 
+hybaiyanCard = sgs.CreateSkillCard{
+	name = "hybaiyanCard",
+	target_fixed = false,
+	will_throw = true,
+	filter = function(self, targets, to_select)
+		if #targets == 0 then
+			return to_select:objectName() ~= sgs.Self:objectName() and not to_select:isKongcheng()
+		end
+		return false
+	end,
+	on_use = function(self, room, source, targets)
+		local target = targets[1]
+		room:fillAG(target:handCards(), source)
+		local card_id = room:askForAG(source, target:handCards(), true, "hybaiyan")
+		source:invoke("clearAG")
+		local getcard = sgs.Sanguosha:getCard(card_id)
+		if getcard:getSuit() == sgs.Card_Diamond then
+			room:obtainCard(source, card_id, true)
+		end
+	end,
+}
+
+hybaiyan = sgs.CreateViewAsSkill{
+	name = "hybaiyan",
+	n = 0,
+	view_as = function(self, cards)
+		local card = hybaiyanCard:clone()
+		card:setSkillName(self:objectName())
+		return card 
+	end,
+	enabled_at_play = function(self, player)
+		return not player:hasUsed("#hybaiyanCard")
+	end,
+}
+
 hynaruto:addSkill(hyfennu)
 hynaruto:addSkill(hyfenshen)
 
@@ -641,6 +678,8 @@ hyrii:addSkill(hyroubo)
 
 hygaara:addSkill(hyshakai)
 hygaara:addSkill(hyjiamei)
+
+hyneiji:addSkill(hybaiyan)
 
 sgs.LoadTranslationTable{
 	["naruto"] = "火影",
@@ -723,9 +762,18 @@ sgs.LoadTranslationTable{
 	["hyshakai"] = "沙铠",
 	[":hyshakai"] = "<b>锁定技</b>，每当你受到伤害时，若此伤害多于1点，则防止多余的伤害。",
 	["hyjiamei"] = "假寐",
-	[":hyjiamei"] = "<b>觉醒技</b>，回合开始阶段开始时，若你装备了武器，你须减1点体力上限，并获得技能“守鹤”和“绝御”。",
+	[":hyjiamei"] = "<b>觉醒技</b>，回合开始阶段开始时，若你装备了武器，你须减1点体力上限，失去技能“沙铠”并获得技能“守鹤”和“绝御”。",
 	["hyshouhe"] = "守鹤",
 	[":hyshouhe"] = "回合开始阶段开始时，你可以将你的武将牌翻面，然后对场上所有角色各造成1点伤害。",
 	["hyjueyu"] = "绝御",
 	[":hyjueyu"] = "<b>锁定技</b>，每当你受到的非火焰伤害结算开始时，若你的体力值为1，防止此伤害。",
+	
+	["hyneiji"] = "宁次",
+	["#hyneiji"] = "天才少年",
+	["designer:hyneiji"] = "啦啦SLG",
+	["cv:hyneiji"] = "远近孝一",
+	["illustrator:hyneiji"] = "岸本齐史",
+	["hybaiyanCard"] = "白眼",
+	["hybaiyan"] = "白眼",
+	[":hybaiyan"] = "出牌阶段，你可以观看一名其他角色的手牌并选择一张方块花色的牌展示并获得之。",
 }
