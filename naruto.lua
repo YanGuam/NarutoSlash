@@ -6,6 +6,7 @@ hysasuke = sgs.General(extension, "hysasuke", "wu", "3")
 hysakura = sgs.General(extension, "hysakura", "wu", "3", false)
 hykakasi = sgs.General(extension, "hykakasi", "wu", "3")
 hyrii = sgs.General(extension, "hyrii", "wu")
+hygaara = sgs.General(extension, "hygaara", "shu", "4")
 
 hyfennu = sgs.CreateTriggerSkill{
 	name = "hyfennu",
@@ -497,6 +498,7 @@ hyliandan = sgs.CreateTriggerSkill{
 		end
         return false
 	end,
+	priority = -2,
 }
 
 hyroubo = sgs.CreateFilterSkill{
@@ -521,6 +523,104 @@ hyroubo = sgs.CreateFilterSkill{
 	end,
 }
 
+hyshakai = sgs.CreateTriggerSkill{
+	name = "hyshakai",
+	frequency = sgs.Skill_Compulsory,
+	events = {sgs.DamageInflicted},
+	on_trigger = function(self, event, player, data)
+		local room = player:getRoom()
+		local damage = data:toDamage()
+		local point = damage.damage
+		if point > 1 then
+			damage.damage = 1
+			data:setValue(damage)
+		end
+		return false
+	end,
+	priority = -2,
+}
+
+hyjiamei = sgs.CreateTriggerSkill{
+	name = "hyjiamei", 
+	frequency = sgs.Skill_Wake, 
+	events = {sgs.EventPhaseStart}, 
+	on_trigger = function(self, event, player, data)
+		local room = player:getRoom()
+		player:gainMark("@waked")
+		room:loseMaxHp(player)
+		room:acquireSkill(player, "hyshouhe", true)
+		room:acquireSkill(player, "hyjueyu", true)
+		room:setPlayerMark(player, "jiamei", 1)
+	end, 
+	can_trigger = function(self, target)
+		if target then
+			if target:isAlive() and target:hasSkill(self:objectName()) then
+				if target:getMark("jiamei") == 0 then
+					if target:getPhase() == sgs.Player_Start then
+						local self_weapon = target:getWeapon()
+						if self_weapon then 
+							return true
+						end
+					end
+				end
+			end
+		end
+		return false
+	end,
+}
+
+hyshouhe = sgs.CreateTriggerSkill{
+	name = "hyshouhe",
+	frequency = sgs.Skill_NotFrequency,
+	events = {sgs.EventPhaseStart},
+	on_trigger = function(self, event, player, data)
+		if player:getPhase() == sgs.Player_Start then
+			local room = player:getRoom()
+			if room:askForSkillInvoke(player, self:objectName(), data) then
+				player:turnOver()
+				local all_players = room:getAllPlayers()
+				for _,victim in sgs.qlist(all_players) do
+					local damage = sgs.DamageStruct()
+					damage.from = player
+					damage.to = victim
+					room:damage(damage)
+				end
+			end
+		end
+	end,
+}
+
+hyjueyu = sgs.CreateTriggerSkill{
+	name = "hyjueyu",
+	frequency = sgs.Skill_Compulsory,
+	events = {sgs.DamageForseen},
+	on_trigger = function(self, event, player, data)
+		local damage = data:toDamage()
+		return damage.nature ~= sgs.DamageStruct_Fire
+	end,
+	can_trigger = function(self, target)
+		if target then
+			if target:isAlive() and target:hasSkill(self:objectName()) then
+				return target:getHp() == 1
+			end
+		end
+	end,
+}
+
+local shouhe = sgs.Sanguosha:getSkill("hyshouhe")
+if not shouhe then
+	local skillList = sgs.SkillList()
+	skillList:append(hyshouhe)
+	sgs.Sanguosha:addSkills(skillList)
+end
+
+local jueyu = sgs.Sanguosha:getSkill("hyjueyu")
+if not jueyu then
+	local skillList = sgs.SkillList()
+	skillList:append(hyjueyu)
+	sgs.Sanguosha:addSkills(skillList)
+end
+
 hynaruto:addSkill(hyfennu)
 hynaruto:addSkill(hyfenshen)
 
@@ -538,6 +638,9 @@ hykakasi:addSkill(hyningtong)
 hyrii:addSkill(hybadun)
 hyrii:addSkill(hyliandan)
 hyrii:addSkill(hyroubo)
+
+hygaara:addSkill(hyshakai)
+hygaara:addSkill(hyjiamei)
 
 sgs.LoadTranslationTable{
 	["naruto"] = "火影",
@@ -611,4 +714,18 @@ sgs.LoadTranslationTable{
 	["InvokeForSlash"] = "你可以对目标再使用一张【杀】。",
 	["hyroubo"] = "肉搏",
 	[":hyroubo"] = "<b>锁定技</b>,你手牌中的装备牌均视为【杀】。",
+	
+	["hygaara"] = "我爱罗",
+	["#hygaara"] = "冷血少年",
+	["designer:hygaara"] = "啦啦SLG",
+	["cv:hygaara"] = "石田彰",
+	["illustrator:hygaara"] = "岸本齐史",
+	["hyshakai"] = "沙铠",
+	[":hyshakai"] = "<b>锁定技</b>，每当你受到伤害时，若此伤害多于1点，则防止多余的伤害。",
+	["hyjiamei"] = "假寐",
+	[":hyjiamei"] = "<b>觉醒技</b>，回合开始阶段开始时，若你装备了武器，你须减1点体力上限，并获得技能“守鹤”和“绝御”。",
+	["hyshouhe"] = "守鹤",
+	[":hyshouhe"] = "回合开始阶段开始时，你可以将你的武将牌翻面，然后对场上所有角色各造成1点伤害。",
+	["hyjueyu"] = "绝御",
+	[":hyjueyu"] = "<b>锁定技</b>，每当你受到的非火焰伤害结算开始时，若你的体力值为1，防止此伤害。",
 }
